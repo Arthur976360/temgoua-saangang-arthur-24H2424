@@ -1,0 +1,72 @@
+<!DOCTYPE html
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <title>Gestion Étudiants</title>
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+<div class="container">
+<h1>Information des Étudiants</h1>
+    <div id="authSwitch" class="auth-switch">compte</div>
+    
+    <!-- Popup choix -->
+    <div id="authPopup" class="popup-hidden">
+        <div class="popup-content">
+            <h3>Choisir mode</h3>
+            <button onclick="setUserMode()" class="auth-btn user-btn"> Utilisateur</button>
+            <button onclick="showAdminLogin()" class="auth-btn admin-btn"> Administrateur</button>
+            <button onclick="hidePopup()" class="close-popup">✕</button>
+        </div>
+    </div>
+
+    <!-- Admin login popup -->
+    <div id="adminLoginPopup" class="popup-hidden">
+        <div class="popup-content">
+            <h3>Login Admin</h3>
+            <input type="text" id="adminUsername" placeholder="Nom admin">
+            <input type="password" id="adminPassword" placeholder="Mot de passe">
+            <button onclick="adminLogin()">Se connecter</button>
+            <button onclick="hideAdminPopup()" class="close-popup">✕</button>
+        </div>
+    </div>
+
+    <!-- FORMULAIRE -->
+    <form id="form">
+        <input type="text" id="nom" placeholder="Nom" required>
+        <input type="text" id="prenom" placeholder="Prénom" required>
+        <input type="text" id="matricule" placeholder="Matricule" required>
+        <input type="date" id="date_naissance" required>
+
+        <select id="filiere">
+            <option value="Informatique">Informatique</option>
+            <option value="Maths">Maths</option>
+            <option value="Bios">Bios</option>
+            <option value="Geos">Geos</option>
+            <option value="Physique">Physique</option>
+            <option value="Chimie">Chimie</option>
+            <option value="ICT">ICT</option>
+        </select>
+
+        <select id="sexe">
+            <option value="Homme">Homme</option>
+            <option value="Femme">Femme</option>
+        </select>
+
+        <button type="submit">Ajouter</button>
+    </form>
+    <p id="message"></p>
+    <input type="text" id="search" placeholder="Rechercher étudiant...">    
+
+<h2 onclick="afficherListe()">Liste des étudiants</h2>
+    <div id="liste" style="display:none;"></div>
+
+<h2 onclick="afficherStats()">Statistiques</h2>
+    <div id="stats" style="display:none;"></div>
+
+
+    <script src="script.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+</body>
+</html>
