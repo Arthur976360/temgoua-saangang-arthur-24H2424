@@ -1,10 +1,9 @@
-const API = "http://localhost:3000";
+const API = "/api";                    // ← Important pour Vercel
 let editingMatricule = null;
 let role = null;
 
-// Elements refs
+// Elements
 const authPopup = document.getElementById("authPopup");
-const authSwitch = document.getElementById("authSwitch");
 const adminLoginPopup = document.getElementById("adminLoginPopup");
 const matriculeInput = document.getElementById("matricule");
 const form = document.getElementById("form");
@@ -13,7 +12,7 @@ const stats = document.getElementById("stats");
 const message = document.getElementById("message");
 const search = document.getElementById("search");
 
-// Sanit matricule
+// Sanitize matricule input
 if (matriculeInput) {
   matriculeInput.addEventListener("input", (e) => {
     let value = e.target.value.toUpperCase().replace(/[^0-9A-Z]/g, "");
@@ -22,43 +21,36 @@ if (matriculeInput) {
   });
 }
 
-// Block UI + popup load
+// Authentification simple
 document.addEventListener("DOMContentLoaded", () => {
-  // NO BLOCK - popup visible but clickable
   if (authPopup) authPopup.classList.remove("popup-hidden");
-  if (authSwitch) authSwitch.addEventListener("click", showChoicePopup);
 });
 
-//  click → choice popup
 function showChoicePopup() {
   if (authPopup) authPopup.classList.remove("popup-hidden");
-  // NO FULL BLOCK - popup overlay only
 }
 
-// User mode
 function setUserMode() {
   role = "user";
   hidePopup();
-  document.body.style.pointerEvents = "auto";
-  document.querySelectorAll("h2, #form, #search").forEach(el => el.style.opacity = "1");
-  alert(" Mode utilisateur activé (ajouter/consulter)");
+  alert("Mode Utilisateur activé");
+  chargerEtudiants();
+  chargerStats();
 }
 
-// Admin popup
 function showAdminLogin() {
   hidePopup();
   if (adminLoginPopup) adminLoginPopup.classList.remove("popup-hidden");
 }
 
-function hideAdminPopup() {
-  adminLoginPopup.classList.add("popup-hidden");
-}
-
 function hidePopup() {
-  authPopup.classList.add("popup-hidden");
+  if (authPopup) authPopup.classList.add("popup-hidden");
 }
 
-// Admin login
+function hideAdminPopup() {
+  if (adminLoginPopup) adminLoginPopup.classList.add("popup-hidden");
+}
+
 async function adminLogin() {
   const username = document.getElementById("adminUsername").value;
   const password = document.getElementById("adminPassword").value;
@@ -66,30 +58,27 @@ async function adminLogin() {
   if (username === "admin" && password === "1234") {
     role = "admin";
     hideAdminPopup();
-    document.body.style.pointerEvents = "auto";
-    document.querySelectorAll("h2, #form, #search").forEach(el => el.style.opacity = "1");
     alert(" Admin connecté ! Accès complet");
+    chargerEtudiants();
     return;
   }
-  
-  alert(" admin/1234 requis");
+  alert("Identifiants incorrects (admin / 1234)");
 }
 
-// Form submit
+// ================= FORM SUBMIT =================
 form.addEventListener("submit", async (e) => {
   e.preventDefault();
 
   const regex = /^\d{2}[A-Z]\d{4}$/;
-  const matriculeValue = matriculeInput.value;
-  if (!regex.test(matriculeValue)) {
-    message.innerText = "Matricule invalide ! 24H2324";
+  if (!regex.test(matriculeInput.value)) {
+    message.innerText = "Matricule invalide ! Exemple : 24H2324";
     return;
   }
 
   const data = {
     nom: document.getElementById('nom').value,
     prenom: document.getElementById('prenom').value,
-    matricule: matriculeInput.value,
+    matricule: matriculeInput.value.toUpperCase(),
     date_naissance: document.getElementById('date_naissance').value,
     filiere: document.getElementById('filiere').value,
     sexe: document.getElementById('sexe').value
@@ -97,21 +86,21 @@ form.addEventListener("submit", async (e) => {
 
   let res;
   if (editingMatricule) {
-    res = await fetch(API + "/api/etudiants/" + editingMatricule, {
+    res = await fetch(API + "/etudiants/" + editingMatricule, {
       method: "PUT",
-      headers: {"Content-Type": "application/json"},
+      headers: { "Content-Type": "application/json" },
       body: JSON.stringify(data)
     });
   } else {
-    res = await fetch(API + "/api/etudiants", {
+    res = await fetch(API + "/etudiants", {
       method: "POST",
-      headers: {"Content-Type": "application/json"},
+      headers: { "Content-Type": "application/json" },
       body: JSON.stringify(data)
     });
   }
 
   const result = await res.json();
-  message.innerText = result.message;
+  message.innerText = result.message || "Opération effectuée";
 
   if (res.ok) {
     form.reset();
@@ -121,92 +110,121 @@ form.addEventListener("submit", async (e) => {
   }
 });
 
-// Charger liste
+// ================= CHARGER ÉTUDIANTS =================
 async function chargerEtudiants() {
-  const res = await fetch(API + "/api/etudiants");
-  const data = await res.json();
-  liste.innerHTML = "";
-  data.forEach(e => {
-    liste.innerHTML += `
-      <div class="etudiant">
-        ${e.nom} ${e.prenom} - ${e.matricule} <span class="date-naissance">${new Date(e.date_naissance).toLocaleDateString('fr-FR')}</span>
-        <div class="actions">
-          ${role === "admin" ? `<button onclick="editStudent('${e.matricule}')">MODIFIER</button>
-          <button onclick="deleteStudent('${e.matricule}')" class="btn-danger">SUPPRIMER</button>` : ''}
-        </div>
-      </div>`;
-  });
+  try {
+    const res = await fetch(API + "/etudiants");
+    const data = await res.json();
+
+    liste.innerHTML = "";
+
+    data.forEach(e => {
+      liste.innerHTML += `
+        <div class="etudiant">
+          <strong>${e.nom} ${e.prenom}</strong> - ${e.matricule}<br>
+          <small>${e.filiere} | ${e.sexe} | ${e.date_naissance ? new Date(e.date_naissance).toLocaleDateString('fr-FR') : ''}</small>
+          <div class="actions">
+            ${role === "admin" ? `
+              <button onclick="editStudent('${e.matricule}')">Modifier</button>
+              <button onclick="deleteStudent('${e.matricule}')" class="btn-danger">Supprimer</button>
+            ` : ''}
+          </div>
+        </div>`;
+    });
+  } catch (err) {
+    console.error(err);
+    liste.innerHTML = "<p>Erreur de connexion au serveur.</p>";
+  }
 }
 
-// Edit
+// ================= EDIT & DELETE =================
 async function editStudent(mat) {
   if (role !== "admin") return alert("Admin seulement");
-  const res = await fetch(API + "/api/etudiants/" + mat);
-  const e = await res.json();
-  document.getElementById('nom').value = e.nom;
-  document.getElementById('prenom').value = e.prenom;
-  matriculeInput.value = e.matricule;
-  document.getElementById('date_naissance').value = e.date_naissance;
-  document.getElementById('filiere').value = e.filiere;
-  document.getElementById('sexe').value = e.sexe;
-  editingMatricule = mat;
+  try {
+    const res = await fetch(API + "/etudiants/" + mat);
+    const e = await res.json();
+
+    document.getElementById('nom').value = e.nom;
+    document.getElementById('prenom').value = e.prenom;
+    matriculeInput.value = e.matricule;
+    document.getElementById('date_naissance').value = e.date_naissance || '';
+    document.getElementById('filiere').value = e.filiere || '';
+    document.getElementById('sexe').value = e.sexe || '';
+    editingMatricule = mat;
+  } catch (err) {
+    alert("Erreur lors du chargement");
+  }
 }
 
-// Delete
 async function deleteStudent(mat) {
   if (role !== "admin") return alert("Admin seulement");
-  if (confirm("Supprimer ?")) {
-    await fetch(API + "/api/etudiants/" + mat, {method: "DELETE"});
+  if (!confirm("Supprimer cet étudiant ?")) return;
+
+  try {
+    await fetch(API + "/etudiants/" + mat, { method: "DELETE" });
     chargerEtudiants();
+    chargerStats();
+  } catch (err) {
+    alert("Erreur lors de la suppression");
   }
 }
 
-// Stats
+// ================= STATS =================
+let chart1, chart2;
+
 async function chargerStats() {
-  const res = await fetch(API + "/api/stats");
-  const data = await res.json();
-  
-  if (stats.innerHTML === ``) {
-    stats.innerHTML = `<p>Total: ${data.total}</p>
-      <canvas id="c1" width="400" height="200"></canvas>
-      <canvas id="c2" width="400" height="200"></canvas>`;
+  try {
+    const res = await fetch(API + "/stats");
+    const data = await res.json();
+
+    stats.innerHTML = `
+      <p><strong>Total des étudiants :</strong> ${data.total}</p>
+      <div style="max-width:500px; margin:20px auto;"><canvas id="c1"></canvas></div>
+      <div style="max-width:400px; margin:20px auto;"><canvas id="c2"></canvas></div>
+    `;
+
+    if (chart1) chart1.destroy();
+    if (chart2) chart2.destroy();
+
+    chart1 = new Chart(document.getElementById('c1'), {
+      type: 'bar',
+      data: {
+        labels: data.par_filiere.map(f => f.filiere),
+        datasets: [{ label: 'Par filière', data: data.par_filiere.map(f => f.total), backgroundColor: '#4bc0c0' }]
+      },
+      options: { responsive: true }
+    });
+
+    chart2 = new Chart(document.getElementById('c2'), {
+      type: 'pie',
+      data: {
+        labels: data.par_sexe.map(s => s.sexe),
+        datasets: [{ data: data.par_sexe.map(s => s.total), backgroundColor: ['#FF6384', '#36A2EB'] }]
+      },
+      options: { responsive: true }
+    });
+  } catch (err) {
+    console.error("Erreur stats:", err);
   }
-  
-  if (window.chart1) chart1.destroy();
-  if (window.chart2) chart2.destroy();
-  
-  window.chart1 = new Chart(document.getElementById('c1'), {
-    type: 'bar',
-    data: {
-      labels: data.par_filiere.map(f => f.filiere),
-      datasets: [{
-        label: 'Par filière',
-        data: data.par_filiere.map(f => f.total),
-        backgroundColor: 'rgba(75, 192, 192, 0.6)'
-      }]
-    }
-  });
-  
-  window.chart2 = new Chart(document.getElementById('c2'), {
-    type: 'pie',
-    data: {
-      labels: data.par_sexe.map(s => s.sexe),
-      datasets: [{
-        data: data.par_sexe.map(s => s.total),
-        backgroundColor: ['#FF6384', '#36A2EB']
-      }]
-    }
-  });
 }
 
-// Toggle liste/stats
-function afficherListe() {liste.style.display = "block"; stats.style.display = "none"; chargerEtudiants();}
-function afficherStats() {stats.style.display = "block"; liste.style.display = "none"; chargerStats();}
+// Toggle entre liste et stats
+function afficherListe() {
+  liste.style.display = "block";
+  stats.style.display = "none";
+  chargerEtudiants();
+}
 
-// Search
+function afficherStats() {
+  liste.style.display = "none";
+  stats.style.display = "block";
+  chargerStats();
+}
+
+// Search (local)
 search.addEventListener("input", (e) => {
   const term = e.target.value.toLowerCase();
   document.querySelectorAll(".etudiant").forEach(el => {
-    el.style.display = el.textContent.toLowerCase().includes(term) ? "flex" : "none";
+    el.style.display = el.textContent.toLowerCase().includes(term) ? "block" : "none";
   });
 });
