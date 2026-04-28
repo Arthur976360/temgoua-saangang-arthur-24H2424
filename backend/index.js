@@ -202,7 +202,18 @@ app.get("/api/etudiants/search", async (req, res) => {
     }
 });
 
-// ================= SERVER =================
-app.listen(3000, () => {
-    console.log("Serveur lancé sur http://localhost:3000");
-});
+
+// ================= SERVER (VERSION VERCEL) =================
+
+
+
+// Pour le développement local
+if (process.env.NODE_ENV !== "production") {
+    const PORT = process.env.PORT || 3000;
+    app.listen(PORT, () => {
+        console.log(`Serveur local lancé sur http://localhost:${PORT}`);
+    });
+}
+
+// Export obligatoire pour Vercel
+module.exports = app;
