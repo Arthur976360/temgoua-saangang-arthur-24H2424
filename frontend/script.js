@@ -10,22 +10,26 @@ const supabase = createClient(supabaseUrl, supabaseKey);
 let editingMatricule = null;
 let role = null;
 
-// Elements
+// ================= ELEMENTS =================
 const authPopup = document.getElementById("authPopup");
 const adminLoginPopup = document.getElementById("adminLoginPopup");
-const matriculeInput = document.getElementById("matricule");
+
 const form = document.getElementById("form");
+const matriculeInput = document.getElementById("matricule");
+
 const liste = document.getElementById("liste");
 const stats = document.getElementById("stats");
 const message = document.getElementById("message");
 const search = document.getElementById("search");
 
-// ================= INIT =================
+// ================= INIT POPUP =================
 document.addEventListener("DOMContentLoaded", () => {
-  if (authPopup) authPopup.classList.remove("popup-hidden");
+  if (authPopup) {
+    authPopup.classList.remove("popup-hidden"); // affiche choix admin/user
+  }
 });
 
-// ================= MATRICULE =================
+// ================= MATRICULE => MAJUSCULE =================
 if (matriculeInput) {
   matriculeInput.addEventListener("input", (e) => {
     let value = e.target.value.toUpperCase().replace(/[^0-9A-Z]/g, "");
@@ -37,22 +41,21 @@ if (matriculeInput) {
 // ================= AUTH =================
 function setUserMode() {
   role = "user";
-  hidePopup();
-  chargerEtudiants();
-  chargerStats();
+  hideAuthPopup();
+  initApp();
 }
 
 function showAdminLogin() {
-  hidePopup();
-  if (adminLoginPopup) adminLoginPopup.classList.remove("popup-hidden");
+  hideAuthPopup();
+  adminLoginPopup.classList.remove("popup-hidden");
 }
 
-function hidePopup() {
-  if (authPopup) authPopup.classList.add("popup-hidden");
+function hideAuthPopup() {
+  authPopup.classList.add("popup-hidden");
 }
 
 function hideAdminPopup() {
-  if (adminLoginPopup) adminLoginPopup.classList.add("popup-hidden");
+  adminLoginPopup.classList.add("popup-hidden");
 }
 
 function adminLogin() {
@@ -62,20 +65,26 @@ function adminLogin() {
   if (username === "admin" && password === "1234") {
     role = "admin";
     hideAdminPopup();
-    chargerEtudiants();
-    chargerStats();
-    return;
+    initApp();
+  } else {
+    alert("Identifiants incorrects");
   }
-  alert("Identifiants incorrects");
 }
 
-// ================= AJOUT / UPDATE =================
+// ================= INITIALISATION APP =================
+async function initApp() {
+  await chargerEtudiants();
+  await chargerStats();
+}
+
+// ================= FORM AJOUT / UPDATE =================
 form.addEventListener("submit", async (e) => {
   e.preventDefault();
 
   const regex = /^\d{2}[A-Z]\d{4}$/;
+
   if (!regex.test(matriculeInput.value)) {
-    message.innerText = "Matricule invalide ! Exemple : 24H2324";
+    message.innerText = "Matricule invalide (ex: 24H2324)";
     return;
   }
 
@@ -106,28 +115,26 @@ form.addEventListener("submit", async (e) => {
 
   if (error) {
     message.innerText = error.message;
-  } else {
-    message.innerText = "Succès ✅";
-    form.reset();
-    editingMatricule = null;
-
-    await chargerEtudiants();
-    await chargerStats();
+    return;
   }
+
+  message.innerText = "Succès ✅";
+  form.reset();
+  editingMatricule = null;
+
+  await initApp();
 });
 
-// ================= LECTURE =================
+// ================= CHARGER ETUDIANTS =================
 async function chargerEtudiants() {
   const { data, error } = await supabase
     .from("etudiant")
     .select("*");
 
   if (error) {
-    liste.innerHTML = "<p>Erreur de connexion</p>";
+    liste.innerHTML = "<p>Erreur de chargement</p>";
     return;
   }
-
-  console.log("ETUDIANTS:", data);
 
   liste.innerHTML = "";
 
@@ -139,9 +146,10 @@ async function chargerEtudiants() {
           ${role === "admin" ? `
             <button onclick="editStudent('${e.matricule}')">Modifier</button>
             <button onclick="deleteStudent('${e.matricule}')">Supprimer</button>
-          ` : ''}
+          ` : ""}
         </div>
-      </div>`;
+      </div>
+    `;
   });
 }
 
@@ -160,9 +168,9 @@ async function editStudent(mat) {
   document.getElementById('nom').value = data.nom;
   document.getElementById('prenom').value = data.prenom;
   matriculeInput.value = data.matricule;
-  document.getElementById('date_naissance').value = data.date_naissance || '';
-  document.getElementById('filiere').value = data.filiere || '';
-  document.getElementById('sexe').value = data.sexe || '';
+  document.getElementById('date_naissance').value = data.date_naissance || "";
+  document.getElementById('filiere').value = data.filiere || "";
+  document.getElementById('sexe').value = data.sexe || "";
 
   editingMatricule = mat;
 }
@@ -177,8 +185,7 @@ async function deleteStudent(mat) {
     .delete()
     .eq("matricule", mat);
 
-  await chargerEtudiants();
-  await chargerStats();
+  await initApp();
 }
 
 // ================= STATS =================
@@ -205,10 +212,9 @@ search.addEventListener("input", (e) => {
   });
 });
 
-// ================= EXPORT FUNCTIONS =================
-window.editStudent = editStudent;
-window.deleteStudent = deleteStudent;
+// ================= EXPORT (IMPORTANT) =================
 window.setUserMode = setUserMode;
 window.showAdminLogin = showAdminLogin;
 window.adminLogin = adminLogin;
-window.hideAdminPopup = hideAdminPopup;
+window.editStudent = editStudent;
+window.deleteStudent = deleteStudent;
