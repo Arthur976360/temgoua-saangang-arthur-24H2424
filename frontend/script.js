@@ -7,9 +7,6 @@ const supabaseKey = "sb_publishable_6VnxP7gtTtAu-J-AxHCraw_5BPLCkOu";
 
 const supabase = createClient(supabaseUrl, supabaseKey);
 
-// ================= DEBUG =================
-console.log(" SUPABASE CONNECTED:", supabaseUrl);
-
 // ================= VARIABLES =================
 let editingMatricule = null;
 let role = null;
@@ -26,12 +23,14 @@ const stats = document.getElementById("stats");
 const message = document.getElementById("message");
 const search = document.getElementById("search");
 
-// ================= INIT POPUP =================
+// ================= POPUP INIT =================
 document.addEventListener("DOMContentLoaded", () => {
-  if (authPopup) authPopup.classList.remove("popup-hidden");
+  if (authPopup) {
+    authPopup.classList.remove("popup-hidden"); // choix user/admin
+  }
 });
 
-// ================= MATRICULE AUTO MAJUSCULE =================
+// ================= MATRICULE EN MAJUSCULE =================
 if (matriculeInput) {
   matriculeInput.addEventListener("input", (e) => {
     let value = e.target.value.toUpperCase().replace(/[^0-9A-Z]/g, "");
@@ -43,21 +42,22 @@ if (matriculeInput) {
 // ================= AUTH =================
 function setUserMode() {
   role = "user";
-  hideAuthPopup();
-  initApp();
+  hidePopup();
+  chargerEtudiants();
+  chargerStats();
 }
 
 function showAdminLogin() {
-  hideAuthPopup();
-  adminLoginPopup.classList.remove("popup-hidden");
+  hidePopup();
+  if (adminLoginPopup) adminLoginPopup.classList.remove("popup-hidden");
 }
 
-function hideAuthPopup() {
-  authPopup.classList.add("popup-hidden");
+function hidePopup() {
+  if (authPopup) authPopup.classList.add("popup-hidden");
 }
 
 function hideAdminPopup() {
-  adminLoginPopup.classList.add("popup-hidden");
+  if (adminLoginPopup) adminLoginPopup.classList.add("popup-hidden");
 }
 
 function adminLogin() {
@@ -67,26 +67,21 @@ function adminLogin() {
   if (username === "admin" && password === "1234") {
     role = "admin";
     hideAdminPopup();
-    initApp();
+    chargerEtudiants();
+    chargerStats();
   } else {
     alert("Identifiants incorrects");
   }
 }
 
-// ================= INIT APP =================
-async function initApp() {
-  await chargerEtudiants();
-  await chargerStats();
-}
-
-// ================= CREATE / UPDATE =================
+// ================= AJOUT / UPDATE =================
 form.addEventListener("submit", async (e) => {
   e.preventDefault();
 
   const regex = /^\d{2}[A-Z]\d{4}$/;
 
   if (!regex.test(matriculeInput.value)) {
-    message.innerText = "Matricule invalide (ex: 24H2324)";
+    message.innerText = "Matricule invalide ! Exemple : 24H2324";
     return;
   }
 
@@ -98,8 +93,6 @@ form.addEventListener("submit", async (e) => {
     filiere: document.getElementById('filiere').value,
     sexe: document.getElementById('sexe').value
   };
-
-  console.log("📤 DATA TO INSERT:", data);
 
   let error;
 
@@ -116,14 +109,14 @@ form.addEventListener("submit", async (e) => {
       .insert([data])
       .select();
 
-    console.log("📥 INSERT RESPONSE:", res);
-
     error = res.error;
+
+    console.log("INSERT DEBUG:", res);
   }
 
   if (error) {
-    console.error("❌ SUPABASE ERROR:", error);
     message.innerText = error.message;
+    console.error(error);
     return;
   }
 
@@ -131,29 +124,25 @@ form.addEventListener("submit", async (e) => {
   form.reset();
   editingMatricule = null;
 
-  await initApp();
+  chargerEtudiants();
+  chargerStats();
 });
 
-// ================= READ =================
+// ================= LECTURE =================
 async function chargerEtudiants() {
   const { data, error } = await supabase
     .from("etudiant")
     .select("*");
 
   if (error) {
-    console.error("❌ SELECT ERROR:", error);
-    liste.innerHTML = "<p>Erreur de chargement</p>";
-    return;
-  }
-
-  if (!data) {
-    liste.innerHTML = "<p>Aucun étudiant trouvé</p>";
+    liste.innerHTML = "<p>Erreur de connexion</p>";
+    console.error(error);
     return;
   }
 
   liste.innerHTML = "";
 
-  data.forEach(e => {
+  (data || []).forEach(e => {
     liste.innerHTML += `
       <div class="etudiant">
         <strong>${e.nom} ${e.prenom}</strong> - ${e.matricule}
@@ -186,9 +175,9 @@ async function editStudent(mat) {
   document.getElementById('nom').value = data.nom;
   document.getElementById('prenom').value = data.prenom;
   matriculeInput.value = data.matricule;
-  document.getElementById('date_naissance').value = data.date_naissance || "";
-  document.getElementById('filiere').value = data.filiere || "";
-  document.getElementById('sexe').value = data.sexe || "";
+  document.getElementById('date_naissance').value = data.date_naissance || '';
+  document.getElementById('filiere').value = data.filiere || '';
+  document.getElementById('sexe').value = data.sexe || '';
 
   editingMatricule = mat;
 }
@@ -196,16 +185,17 @@ async function editStudent(mat) {
 // ================= DELETE =================
 async function deleteStudent(mat) {
   if (role !== "admin") return;
-  if (!confirm("Supprimer cet étudiant ?")) return;
+  if (!confirm("Supprimer ?")) return;
 
   const res = await supabase
     .from("etudiant")
     .delete()
     .eq("matricule", mat);
 
-  console.log("🗑 DELETE:", res);
+  console.log("DELETE:", res);
 
-  await initApp();
+  chargerEtudiants();
+  chargerStats();
 }
 
 // ================= STATS =================
@@ -221,7 +211,7 @@ async function chargerStats() {
 
   const total = Array.isArray(data) ? data.length : 0;
 
-  stats.innerHTML = `<p>Total étudiants : ${total}</p>`;
+  stats.innerHTML = `<p>Total : ${total}</p>`;
 }
 
 // ================= SEARCH =================
@@ -235,7 +225,7 @@ search.addEventListener("input", (e) => {
   });
 });
 
-// ================= EXPORT GLOBAL =================
+// ================= EXPORT =================
 window.setUserMode = setUserMode;
 window.showAdminLogin = showAdminLogin;
 window.adminLogin = adminLogin;
