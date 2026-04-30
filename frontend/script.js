@@ -1,4 +1,12 @@
-const API = "/api";                    // ← Important pour Vercel
+// ================= SUPABASE CONFIG =================
+import { createClient } from 'https://cdn.jsdelivr.net/npm/@supabase/supabase-js/+esm'
+
+const supabaseUrl = "https://dwqvstndnaopujtuevrx.supabase.co";
+const supabaseKey = "sb_publishable_6VnxP7gtTtAu-J-AxHCraw_5BPLCkOu"; 
+
+const supabase = createClient(supabaseUrl, supabaseKey);
+
+// ================= VARIABLES =================
 let editingMatricule = null;
 let role = null;
 
@@ -12,7 +20,7 @@ const stats = document.getElementById("stats");
 const message = document.getElementById("message");
 const search = document.getElementById("search");
 
-// Sanitize matricule input
+// ================= MATRICULE =================
 if (matriculeInput) {
   matriculeInput.addEventListener("input", (e) => {
     let value = e.target.value.toUpperCase().replace(/[^0-9A-Z]/g, "");
@@ -21,19 +29,14 @@ if (matriculeInput) {
   });
 }
 
-// Authentification simple
+// ================= AUTH =================
 document.addEventListener("DOMContentLoaded", () => {
   if (authPopup) authPopup.classList.remove("popup-hidden");
 });
 
-function showChoicePopup() {
-  if (authPopup) authPopup.classList.remove("popup-hidden");
-}
-
 function setUserMode() {
   role = "user";
   hidePopup();
-  alert("Mode Utilisateur activé");
   chargerEtudiants();
   chargerStats();
 }
@@ -51,21 +54,20 @@ function hideAdminPopup() {
   if (adminLoginPopup) adminLoginPopup.classList.add("popup-hidden");
 }
 
-async function adminLogin() {
+function adminLogin() {
   const username = document.getElementById("adminUsername").value;
   const password = document.getElementById("adminPassword").value;
-  
+
   if (username === "admin" && password === "1234") {
     role = "admin";
     hideAdminPopup();
-    alert(" Admin connecté ! Accès complet");
     chargerEtudiants();
     return;
   }
-  alert("Identifiants incorrects (admin / 1234)");
+  alert("Identifiants incorrects");
 }
 
-// ================= FORM SUBMIT =================
+// ================= AJOUT / UPDATE =================
 form.addEventListener("submit", async (e) => {
   e.preventDefault();
 
@@ -84,25 +86,23 @@ form.addEventListener("submit", async (e) => {
     sexe: document.getElementById('sexe').value
   };
 
-  let res;
+  let error;
+
   if (editingMatricule) {
-    res = await fetch(API + "/etudiants/" + editingMatricule, {
-      method: "PUT",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(data)
-    });
+    ({ error } = await supabase
+      .from("etudiant")
+      .update(data)
+      .eq("matricule", editingMatricule));
   } else {
-    res = await fetch(API + "/etudiants", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(data)
-    });
+    ({ error } = await supabase
+      .from("etudiant")
+      .insert([data]));
   }
 
-  const result = await res.json();
-  message.innerText = result.message || "Opération effectuée";
-
-  if (res.ok) {
+  if (error) {
+    message.innerText = error.message;
+  } else {
+    message.innerText = "Succès ";
     form.reset();
     editingMatricule = null;
     chargerEtudiants();
@@ -110,118 +110,79 @@ form.addEventListener("submit", async (e) => {
   }
 });
 
-// ================= CHARGER ÉTUDIANTS =================
+// ================= LECTURE =================
 async function chargerEtudiants() {
-  try {
-    const res = await fetch(API + "/etudiants");
-    const data = await res.json();
+  const { data, error } = await supabase
+    .from("etudiant")
+    .select("*");
 
-    liste.innerHTML = "";
-
-    data.forEach(e => {
-      liste.innerHTML += `
-        <div class="etudiant">
-          <strong>${e.nom} ${e.prenom}</strong> - ${e.matricule}<br>
-          <small>${e.filiere} | ${e.sexe} | ${e.date_naissance ? new Date(e.date_naissance).toLocaleDateString('fr-FR') : ''}</small>
-          <div class="actions">
-            ${role === "admin" ? `
-              <button onclick="editStudent('${e.matricule}')">Modifier</button>
-              <button onclick="deleteStudent('${e.matricule}')" class="btn-danger">Supprimer</button>
-            ` : ''}
-          </div>
-        </div>`;
-    });
-  } catch (err) {
-    console.error(err);
-    liste.innerHTML = "<p>Erreur de connexion au serveur.</p>";
+  if (error) {
+    liste.innerHTML = "<p>Erreur de connexion</p>";
+    return;
   }
+
+  liste.innerHTML = "";
+
+  data.forEach(e => {
+    liste.innerHTML += `
+      <div class="etudiant">
+        <strong>${e.nom} ${e.prenom}</strong> - ${e.matricule}
+        <div>
+          ${role === "admin" ? `
+            <button onclick="editStudent('${e.matricule}')">Modifier</button>
+            <button onclick="deleteStudent('${e.matricule}')">Supprimer</button>
+          ` : ''}
+        </div>
+      </div>`;
+  });
 }
 
-// ================= EDIT & DELETE =================
+// ================= EDIT =================
 async function editStudent(mat) {
-  if (role !== "admin") return alert("Admin seulement");
-  try {
-    const res = await fetch(API + "/etudiants/" + mat);
-    const e = await res.json();
+  if (role !== "admin") return;
 
-    document.getElementById('nom').value = e.nom;
-    document.getElementById('prenom').value = e.prenom;
-    matriculeInput.value = e.matricule;
-    document.getElementById('date_naissance').value = e.date_naissance || '';
-    document.getElementById('filiere').value = e.filiere || '';
-    document.getElementById('sexe').value = e.sexe || '';
-    editingMatricule = mat;
-  } catch (err) {
-    alert("Erreur lors du chargement");
-  }
+  const { data } = await supabase
+    .from("etudiant")
+    .select("*")
+    .eq("matricule", mat)
+    .single();
+
+  document.getElementById('nom').value = data.nom;
+  document.getElementById('prenom').value = data.prenom;
+  matriculeInput.value = data.matricule;
+  document.getElementById('date_naissance').value = data.date_naissance || '';
+  document.getElementById('filiere').value = data.filiere || '';
+  document.getElementById('sexe').value = data.sexe || '';
+
+  editingMatricule = mat;
 }
 
+// ================= DELETE =================
 async function deleteStudent(mat) {
-  if (role !== "admin") return alert("Admin seulement");
-  if (!confirm("Supprimer cet étudiant ?")) return;
+  if (role !== "admin") return;
+  if (!confirm("Supprimer ?")) return;
 
-  try {
-    await fetch(API + "/etudiants/" + mat, { method: "DELETE" });
-    chargerEtudiants();
-    chargerStats();
-  } catch (err) {
-    alert("Erreur lors de la suppression");
-  }
-}
+  await supabase
+    .from("etudiant")
+    .delete()
+    .eq("matricule", mat);
 
-// ================= STATS =================
-let chart1, chart2;
-
-async function chargerStats() {
-  try {
-    const res = await fetch(API + "/stats");
-    const data = await res.json();
-
-    stats.innerHTML = `
-      <p><strong>Total des étudiants :</strong> ${data.total}</p>
-      <div style="max-width:500px; margin:20px auto;"><canvas id="c1"></canvas></div>
-      <div style="max-width:400px; margin:20px auto;"><canvas id="c2"></canvas></div>
-    `;
-
-    if (chart1) chart1.destroy();
-    if (chart2) chart2.destroy();
-
-    chart1 = new Chart(document.getElementById('c1'), {
-      type: 'bar',
-      data: {
-        labels: data.par_filiere.map(f => f.filiere),
-        datasets: [{ label: 'Par filière', data: data.par_filiere.map(f => f.total), backgroundColor: '#4bc0c0' }]
-      },
-      options: { responsive: true }
-    });
-
-    chart2 = new Chart(document.getElementById('c2'), {
-      type: 'pie',
-      data: {
-        labels: data.par_sexe.map(s => s.sexe),
-        datasets: [{ data: data.par_sexe.map(s => s.total), backgroundColor: ['#FF6384', '#36A2EB'] }]
-      },
-      options: { responsive: true }
-    });
-  } catch (err) {
-    console.error("Erreur stats:", err);
-  }
-}
-
-// Toggle entre liste et stats
-function afficherListe() {
-  liste.style.display = "block";
-  stats.style.display = "none";
   chargerEtudiants();
-}
-
-function afficherStats() {
-  liste.style.display = "none";
-  stats.style.display = "block";
   chargerStats();
 }
 
-// Search (local)
+// ================= STATS =================
+async function chargerStats() {
+  const { data } = await supabase
+    .from("etudiant")
+    .select("*");
+
+  const total = data.length;
+
+  stats.innerHTML = `<p>Total : ${total}</p>`;
+}
+
+// ================= SEARCH =================
 search.addEventListener("input", (e) => {
   const term = e.target.value.toLowerCase();
   document.querySelectorAll(".etudiant").forEach(el => {
