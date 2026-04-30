@@ -1,3 +1,4 @@
+
 // ================= SUPABASE CONFIG =================
 import { createClient } from 'https://cdn.jsdelivr.net/npm/@supabase/supabase-js/+esm'
 
@@ -5,6 +6,9 @@ const supabaseUrl = "https://dwqvstndnaopujtuevrx.supabase.co";
 const supabaseKey = "sb_publishable_6VnxP7gtTtAu-J-AxHCraw_5BPLCkOu";
 
 const supabase = createClient(supabaseUrl, supabaseKey);
+
+// ================= DEBUG =================
+console.log(" SUPABASE CONNECTED:", supabaseUrl);
 
 // ================= VARIABLES =================
 let editingMatricule = null;
@@ -24,12 +28,10 @@ const search = document.getElementById("search");
 
 // ================= INIT POPUP =================
 document.addEventListener("DOMContentLoaded", () => {
-  if (authPopup) {
-    authPopup.classList.remove("popup-hidden"); // affiche choix admin/user
-  }
+  if (authPopup) authPopup.classList.remove("popup-hidden");
 });
 
-// ================= MATRICULE => MAJUSCULE =================
+// ================= MATRICULE AUTO MAJUSCULE =================
 if (matriculeInput) {
   matriculeInput.addEventListener("input", (e) => {
     let value = e.target.value.toUpperCase().replace(/[^0-9A-Z]/g, "");
@@ -71,13 +73,13 @@ function adminLogin() {
   }
 }
 
-// ================= INITIALISATION APP =================
+// ================= INIT APP =================
 async function initApp() {
   await chargerEtudiants();
   await chargerStats();
 }
 
-// ================= FORM AJOUT / UPDATE =================
+// ================= CREATE / UPDATE =================
 form.addEventListener("submit", async (e) => {
   e.preventDefault();
 
@@ -97,48 +99,61 @@ form.addEventListener("submit", async (e) => {
     sexe: document.getElementById('sexe').value
   };
 
+  console.log("📤 DATA TO INSERT:", data);
+
   let error;
 
   if (editingMatricule) {
-    ({ error } = await supabase
+    const res = await supabase
       .from("etudiant")
       .update(data)
-      .eq("matricule", editingMatricule));
+      .eq("matricule", editingMatricule);
+
+    error = res.error;
   } else {
     const res = await supabase
       .from("etudiant")
       .insert([data])
       .select();
 
+    console.log("📥 INSERT RESPONSE:", res);
+
     error = res.error;
   }
 
   if (error) {
+    console.error("❌ SUPABASE ERROR:", error);
     message.innerText = error.message;
     return;
   }
 
-  message.innerText = "Succès ✅";
+  message.innerText = "Succès ";
   form.reset();
   editingMatricule = null;
 
   await initApp();
 });
 
-// ================= CHARGER ETUDIANTS =================
+// ================= READ =================
 async function chargerEtudiants() {
   const { data, error } = await supabase
     .from("etudiant")
     .select("*");
 
   if (error) {
+    console.error("❌ SELECT ERROR:", error);
     liste.innerHTML = "<p>Erreur de chargement</p>";
+    return;
+  }
+
+  if (!data) {
+    liste.innerHTML = "<p>Aucun étudiant trouvé</p>";
     return;
   }
 
   liste.innerHTML = "";
 
-  (data || []).forEach(e => {
+  data.forEach(e => {
     liste.innerHTML += `
       <div class="etudiant">
         <strong>${e.nom} ${e.prenom}</strong> - ${e.matricule}
@@ -163,7 +178,10 @@ async function editStudent(mat) {
     .eq("matricule", mat)
     .single();
 
-  if (error || !data) return;
+  if (error || !data) {
+    console.error(error);
+    return;
+  }
 
   document.getElementById('nom').value = data.nom;
   document.getElementById('prenom').value = data.prenom;
@@ -180,10 +198,12 @@ async function deleteStudent(mat) {
   if (role !== "admin") return;
   if (!confirm("Supprimer cet étudiant ?")) return;
 
-  await supabase
+  const res = await supabase
     .from("etudiant")
     .delete()
     .eq("matricule", mat);
+
+  console.log("🗑 DELETE:", res);
 
   await initApp();
 }
@@ -194,9 +214,12 @@ async function chargerStats() {
     .from("etudiant")
     .select("*");
 
-  if (error) return;
+  if (error) {
+    console.error(error);
+    return;
+  }
 
-  const total = data ? data.length : 0;
+  const total = Array.isArray(data) ? data.length : 0;
 
   stats.innerHTML = `<p>Total étudiants : ${total}</p>`;
 }
@@ -212,7 +235,7 @@ search.addEventListener("input", (e) => {
   });
 });
 
-// ================= EXPORT (IMPORTANT) =================
+// ================= EXPORT GLOBAL =================
 window.setUserMode = setUserMode;
 window.showAdminLogin = showAdminLogin;
 window.adminLogin = adminLogin;
