@@ -2,7 +2,7 @@
 import { createClient } from 'https://cdn.jsdelivr.net/npm/@supabase/supabase-js/+esm'
 
 const supabaseUrl = "https://dwqvstndnaopujtuevrx.supabase.co";
-const supabaseKey = "sb_publishable_6VnxP7gtTtAu-J-AxHCraw_5BPLCkOu"; 
+const supabaseKey = "sb_publishable_6VnxP7gtTtAu-J-AxHCraw_5BPLCkOu";
 
 const supabase = createClient(supabaseUrl, supabaseKey);
 
@@ -20,6 +20,11 @@ const stats = document.getElementById("stats");
 const message = document.getElementById("message");
 const search = document.getElementById("search");
 
+// ================= INIT =================
+document.addEventListener("DOMContentLoaded", () => {
+  if (authPopup) authPopup.classList.remove("popup-hidden");
+});
+
 // ================= MATRICULE =================
 if (matriculeInput) {
   matriculeInput.addEventListener("input", (e) => {
@@ -30,10 +35,6 @@ if (matriculeInput) {
 }
 
 // ================= AUTH =================
-document.addEventListener("DOMContentLoaded", () => {
-  if (authPopup) authPopup.classList.remove("popup-hidden");
-});
-
 function setUserMode() {
   role = "user";
   hidePopup();
@@ -62,6 +63,7 @@ function adminLogin() {
     role = "admin";
     hideAdminPopup();
     chargerEtudiants();
+    chargerStats();
     return;
   }
   alert("Identifiants incorrects");
@@ -94,19 +96,23 @@ form.addEventListener("submit", async (e) => {
       .update(data)
       .eq("matricule", editingMatricule));
   } else {
-    ({ error } = await supabase
+    const res = await supabase
       .from("etudiant")
-      .insert([data]));
+      .insert([data])
+      .select();
+
+    error = res.error;
   }
 
   if (error) {
     message.innerText = error.message;
   } else {
-    message.innerText = "Succès ";
+    message.innerText = "Succès ✅";
     form.reset();
     editingMatricule = null;
-    chargerEtudiants();
-    chargerStats();
+
+    await chargerEtudiants();
+    await chargerStats();
   }
 });
 
@@ -121,9 +127,11 @@ async function chargerEtudiants() {
     return;
   }
 
+  console.log("ETUDIANTS:", data);
+
   liste.innerHTML = "";
 
-  data.forEach(e => {
+  (data || []).forEach(e => {
     liste.innerHTML += `
       <div class="etudiant">
         <strong>${e.nom} ${e.prenom}</strong> - ${e.matricule}
@@ -141,11 +149,13 @@ async function chargerEtudiants() {
 async function editStudent(mat) {
   if (role !== "admin") return;
 
-  const { data } = await supabase
+  const { data, error } = await supabase
     .from("etudiant")
     .select("*")
     .eq("matricule", mat)
     .single();
+
+  if (error || !data) return;
 
   document.getElementById('nom').value = data.nom;
   document.getElementById('prenom').value = data.prenom;
@@ -160,32 +170,45 @@ async function editStudent(mat) {
 // ================= DELETE =================
 async function deleteStudent(mat) {
   if (role !== "admin") return;
-  if (!confirm("Supprimer ?")) return;
+  if (!confirm("Supprimer cet étudiant ?")) return;
 
   await supabase
     .from("etudiant")
     .delete()
     .eq("matricule", mat);
 
-  chargerEtudiants();
-  chargerStats();
+  await chargerEtudiants();
+  await chargerStats();
 }
 
 // ================= STATS =================
 async function chargerStats() {
-  const { data } = await supabase
+  const { data, error } = await supabase
     .from("etudiant")
     .select("*");
 
-  const total = data.length;
+  if (error) return;
 
-  stats.innerHTML = `<p>Total : ${total}</p>`;
+  const total = data ? data.length : 0;
+
+  stats.innerHTML = `<p>Total étudiants : ${total}</p>`;
 }
 
 // ================= SEARCH =================
 search.addEventListener("input", (e) => {
   const term = e.target.value.toLowerCase();
+
   document.querySelectorAll(".etudiant").forEach(el => {
-    el.style.display = el.textContent.toLowerCase().includes(term) ? "block" : "none";
+    el.style.display = el.textContent.toLowerCase().includes(term)
+      ? "block"
+      : "none";
   });
 });
+
+// ================= EXPORT FUNCTIONS =================
+window.editStudent = editStudent;
+window.deleteStudent = deleteStudent;
+window.setUserMode = setUserMode;
+window.showAdminLogin = showAdminLogin;
+window.adminLogin = adminLogin;
+window.hideAdminPopup = hideAdminPopup;
