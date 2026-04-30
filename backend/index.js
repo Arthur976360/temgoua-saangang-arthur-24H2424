@@ -202,12 +202,9 @@ app.get("/api/etudiants/search", async (req, res) => {
     }
 });
 
+// ================= SERVER (VERSION VERCEL + SUPABASE) =================
 
-// ================= SERVER (VERSION VERCEL) =================
-
-
-
-// Pour le développement local
+// Pour le développement local seulement
 if (process.env.NODE_ENV !== "production") {
     const PORT = process.env.PORT || 3000;
     app.listen(PORT, () => {
@@ -217,3 +214,5 @@ if (process.env.NODE_ENV !== "production") {
 
 // Export obligatoire pour Vercel
 module.exports = app;
+
+
