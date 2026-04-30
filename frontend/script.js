@@ -12,47 +12,73 @@ let editingMatricule = null;
 let role = null;
 
 // ================= ELEMENTS =================
-const authPopup = document.getElementById("authPopup");
-const adminLoginPopup = document.getElementById("adminLoginPopup");
+let authPopup, adminLoginPopup;
+let form, matriculeInput, liste, stats, message, search;
 
-const form = document.getElementById("form");
-const matriculeInput = document.getElementById("matricule");
+// ================= INIT DOM =================
+window.addEventListener("load", () => {
+  authPopup = document.getElementById("authPopup");
+  adminLoginPopup = document.getElementById("adminLoginPopup");
 
-const liste = document.getElementById("liste");
-const stats = document.getElementById("stats");
-const message = document.getElementById("message");
-const search = document.getElementById("search");
+  form = document.getElementById("form");
+  matriculeInput = document.getElementById("matricule");
 
-// ================= POPUP INIT =================
-document.addEventListener("DOMContentLoaded", () => {
+  liste = document.getElementById("liste");
+  stats = document.getElementById("stats");
+  message = document.getElementById("message");
+  search = document.getElementById("search");
+
+  // 👉 POPUP AU DÉMARRAGE
   if (authPopup) {
-    authPopup.classList.remove("popup-hidden"); // choix user/admin
+    authPopup.classList.remove("popup-hidden");
   }
+
+  initEvents();
 });
 
-// ================= MATRICULE EN MAJUSCULE =================
-if (matriculeInput) {
-  matriculeInput.addEventListener("input", (e) => {
-    let value = e.target.value.toUpperCase().replace(/[^0-9A-Z]/g, "");
-    if (value.length > 7) value = value.slice(0, 7);
-    e.target.value = value;
-  });
+// ================= EVENTS =================
+function initEvents() {
+
+  // matricule MAJUSCULE
+  if (matriculeInput) {
+    matriculeInput.addEventListener("input", (e) => {
+      let value = e.target.value.toUpperCase().replace(/[^0-9A-Z]/g, "");
+      if (value.length > 7) value = value.slice(0, 7);
+      e.target.value = value;
+    });
+  }
+
+  // form submit
+  if (form) {
+    form.addEventListener("submit", submitForm);
+  }
+
+  // search
+  if (search) {
+    search.addEventListener("input", (e) => {
+      const term = e.target.value.toLowerCase();
+      document.querySelectorAll(".etudiant").forEach(el => {
+        el.style.display = el.textContent.toLowerCase().includes(term)
+          ? "block"
+          : "none";
+      });
+    });
+  }
 }
 
 // ================= AUTH =================
 function setUserMode() {
   role = "user";
-  hidePopup();
-  chargerEtudiants();
-  chargerStats();
+  hideAuthPopup();
+  initApp();
 }
 
 function showAdminLogin() {
-  hidePopup();
+  hideAuthPopup();
   if (adminLoginPopup) adminLoginPopup.classList.remove("popup-hidden");
 }
 
-function hidePopup() {
+function hideAuthPopup() {
   if (authPopup) authPopup.classList.add("popup-hidden");
 }
 
@@ -67,21 +93,26 @@ function adminLogin() {
   if (username === "admin" && password === "1234") {
     role = "admin";
     hideAdminPopup();
-    chargerEtudiants();
-    chargerStats();
+    initApp();
   } else {
     alert("Identifiants incorrects");
   }
 }
 
+// ================= INIT APP =================
+async function initApp() {
+  await chargerEtudiants();
+  await chargerStats();
+}
+
 // ================= AJOUT / UPDATE =================
-form.addEventListener("submit", async (e) => {
+async function submitForm(e) {
   e.preventDefault();
 
   const regex = /^\d{2}[A-Z]\d{4}$/;
 
   if (!regex.test(matriculeInput.value)) {
-    message.innerText = "Matricule invalide ! Exemple : 24H2324";
+    message.innerText = "Matricule invalide (ex: 24H2324)";
     return;
   }
 
@@ -109,9 +140,8 @@ form.addEventListener("submit", async (e) => {
       .insert([data])
       .select();
 
+    console.log("INSERT:", res);
     error = res.error;
-
-    console.log("INSERT DEBUG:", res);
   }
 
   if (error) {
@@ -120,23 +150,22 @@ form.addEventListener("submit", async (e) => {
     return;
   }
 
-  message.innerText = "Succès ";
+  message.innerText = "Succès ✅";
   form.reset();
   editingMatricule = null;
 
-  chargerEtudiants();
-  chargerStats();
-});
+  await initApp();
+}
 
-// ================= LECTURE =================
+// ================= LISTE =================
 async function chargerEtudiants() {
   const { data, error } = await supabase
     .from("etudiant")
     .select("*");
 
   if (error) {
-    liste.innerHTML = "<p>Erreur de connexion</p>";
     console.error(error);
+    liste.innerHTML = "<p>Erreur chargement</p>";
     return;
   }
 
@@ -161,16 +190,13 @@ async function chargerEtudiants() {
 async function editStudent(mat) {
   if (role !== "admin") return;
 
-  const { data, error } = await supabase
+  const { data } = await supabase
     .from("etudiant")
     .select("*")
     .eq("matricule", mat)
     .single();
 
-  if (error || !data) {
-    console.error(error);
-    return;
-  }
+  if (!data) return;
 
   document.getElementById('nom').value = data.nom;
   document.getElementById('prenom').value = data.prenom;
@@ -187,45 +213,26 @@ async function deleteStudent(mat) {
   if (role !== "admin") return;
   if (!confirm("Supprimer ?")) return;
 
-  const res = await supabase
+  await supabase
     .from("etudiant")
     .delete()
     .eq("matricule", mat);
 
-  console.log("DELETE:", res);
-
-  chargerEtudiants();
-  chargerStats();
+  await initApp();
 }
 
 // ================= STATS =================
 async function chargerStats() {
-  const { data, error } = await supabase
+  const { data } = await supabase
     .from("etudiant")
     .select("*");
-
-  if (error) {
-    console.error(error);
-    return;
-  }
 
   const total = Array.isArray(data) ? data.length : 0;
 
   stats.innerHTML = `<p>Total : ${total}</p>`;
 }
 
-// ================= SEARCH =================
-search.addEventListener("input", (e) => {
-  const term = e.target.value.toLowerCase();
-
-  document.querySelectorAll(".etudiant").forEach(el => {
-    el.style.display = el.textContent.toLowerCase().includes(term)
-      ? "block"
-      : "none";
-  });
-});
-
-// ================= EXPORT =================
+// ================= EXPORT (IMPORTANT UI FIX) =================
 window.setUserMode = setUserMode;
 window.showAdminLogin = showAdminLogin;
 window.adminLogin = adminLogin;
